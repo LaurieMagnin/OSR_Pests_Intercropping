@@ -1,0 +1,104 @@
+---
+title: "2024.08.02_Factice_RDMT"
+author: "Laurie Magnin"
+date: "2024-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+RDMT_Factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/RDMT_Factice.csv", sep=";")
+
+
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(rstatix)
+library(broom)
+library(emmeans)
+
+```
+
+## Exploratory figure
+
+
+```{r exploratory, echo=FALSE, message=FALSE}
+
+ggplot(RDMT_Factice, aes(x=modality, y=RDT))  + geom_boxplot()+ 
+  facet_wrap(~ parcelle)
+
+```
+
+## Model 
+
+```{r model, echo=FALSE, message=FALSE, warning=FALSE}
+
+RDMT_Factice$bloc <- as.factor(RDMT_Factice$bloc)
+
+RDMT_Factice %>% anova_test(RDT ~ parcelle/bloc  +modality ) #OK
+
+
+#Normalité des résidus 
+
+model <- lm(RDT ~ parcelle/bloc + modality, data=RDMT_Factice) #calculer le model, la covariable passe en premier 
+
+model.metrics <- augment(model) 
+head(model.metrics)
+qqnorm(model.metrics$.resid)
+qqline(model.metrics$.resid)
+
+shapiro_test(model.metrics$.resid) # OK 
+
+#Homogénéité des variances 
+
+model.metrics %>% levene_test(.resid ~ modality) #OK
+
+# Valeurs aberrantes 
+
+model.metrics %>% filter(abs(.std.resid) > 3) %>% as.data.frame() #OK
+
+```
+
+## Model output
+
+```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
+##Calcul de l'ANCOVA
+
+res.aov <- RDMT_Factice %>% anova_test(RDT ~ parcelle/bloc + modality )
+get_anova_table(res.aov)
+
+pwc <- 
+  emmeans(model,pairwise~modality )
+pwc
+
+
+```
+
+## Result figure and effect 
+
+```{r results, echo=FALSE, message=FALSE}
+
+emm<-emmeans(model, ~ modality, type = 'response')
+
+plot(emm, by = NULL, comparisons = FALSE, adjust = "tukey", horizontal = FALSE) #calculer le model, la covariable passe en premier 
+
+library('data.table')
+
+emm<- as.data.table(emm)
+
+hundred <- emm[[1,2]]
+emm$effect_percent <- (emm$emmean/hundred*100)-100 
+
+emm
+
+plot1<-ggplot(emm, aes(x=modality, y=emmean, fill = modality )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=emmean-SE, ymax=emmean+SE), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 45), breaks = c(10, 20, 30, 40))
+
+plot1+labs(title="Relative yield", x="Modality", y = "EMMean of yield (dt/Ha)")+
+  theme_classic() 
+```

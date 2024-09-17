@@ -1,0 +1,116 @@
+---
+title: "2024.08.02_Factice_P.chrysocephala_migration"
+author: "Laurie Magnin"
+date: "2024-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+Migration_Altises_factice <-read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Migration_Altises_factice_2.csv", sep=";")
+
+Migration_Altises_factice$parcelle<-as.factor(Migration_Altises_factice$parcelle)
+Migration_Altises_factice$nb_grosse_altise<-as.numeric(Migration_Altises_factice$nb_grosse_altise)
+
+library("ggplot2")
+
+Migration_Altises_factice_pic<-subset(Migration_Altises_factice, date =="2023-09-28"| date =="2023-10-03"| date =="2023-10-10"| date =="2023-17-10"| date =="2022-09-22"| date =="2022-09-29"| date =="2022-10-10"|date =="2022-10-20")
+head(Migration_Altises_factice_pic)
+
+library(dplyr)
+Migration_Altises_factice_pic_bloc <-Migration_Altises_factice_pic %>%                                 # Group data
+  group_by( modalite, parcelle) %>%
+  dplyr::summarize(gr_sum = mean(nb_grosse_altise), sd = sd(nb_grosse_altise), n = n(),
+                   se = sd / sqrt(n)) %>% 
+  as.data.frame()
+
+Migration_Altises_factice_pic_bloc$gr_sum <- as.numeric(Migration_Altises_factice_pic_bloc$gr_sum)
+
+```
+
+## Exploratory figure
+
+
+```{r exploratory, echo=FALSE}
+
+plot2<-ggplot(Migration_Altises_factice_pic_bloc, aes(x=modalite, y=gr_sum, fill = modalite )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=gr_sum-se, ymax=gr_sum+se), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 12.5))+
+  facet_wrap(vars(parcelle))
+
+plot2+labs(title="Number of adult flea beetle trapped per sticky trap per week", x="Modality", y = "Number of adult flea beetle")+
+  theme_classic() 
+
+```
+
+## Model 
+
+```{r model set up, include=FALSE}
+
+
+
+```
+
+```{r model, echo=FALSE, message=FALSE}
+
+Migration_Altises_factice_pic$bloc <- paste(Migration_Altises_factice_pic$parcelle, "_", Migration_Altises_factice_pic$plot)
+
+library(glmmTMB)
+
+mymodel<- glmmTMB(nb_grosse_altise ~  modalite + (1|plot/bloc/date) , data= Migration_Altises_factice_pic, family = nbinom1)
+summary(mymodel)
+
+library(DHARMa)
+n_sim <- 500
+
+simulationOutput <- simulateResiduals(fittedModel = mymodel, n = n_sim)
+plot(simulationOutput, asFactor = F)
+
+testDispersion(simulationOutput)
+
+plot(simulationOutput, form = Migration_Altises_factice_pic$modalite)
+
+
+```
+
+## Model output
+
+```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
+library("car")
+library(emmeans)
+
+Anova(mymodel, type=3)
+emmeans(mymodel, list(pairwise ~ modalite), adjust = "tukey")
+
+```
+
+## Result figure and effect 
+
+```{r results, echo=FALSE, , message=FALSE}
+emm<-emmeans(mymodel, ~ modalite, type = 'response')
+
+library('data.table')
+
+emm<- as.data.table(emm)
+
+hundred <- emm[[1,2]]
+emm$effect_percent <- (emm$response/hundred*100)-100 
+
+emm
+plot_bites <- ggplot(emm, aes(x=modalite, y=response, fill = modalite )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 8), breaks = c(0, 2, 4, 6, 8))
+
+plot_bites +labs(title="Number of adult flea beetle trapped per sticky trap per week", x="Modality", y = "EMMean number of adult flea beetle")+
+  theme_classic() 
+
+```

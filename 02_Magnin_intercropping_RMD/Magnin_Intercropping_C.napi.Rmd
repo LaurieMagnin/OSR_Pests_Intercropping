@@ -1,0 +1,102 @@
+---
+title: "2024.08.02_Factice_C.napi"
+author: "Laurie Magnin"
+date: "2024-08-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
+
+data_char<-subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2024-03-01"|Notations_structures_factice$date.1 == "2023-03-01")
+data_char$piqure <- as.numeric(data_char$piqure)
+
+```
+
+## Exploratory figure
+
+
+```{r exploratory, echo=FALSE, message=FALSE}
+
+library(ggplot2)
+
+ggplot(data_char, aes(x=modality, y=piqure, color=modality))  +
+  geom_violin() + labs(title="Number of oviposition punctures per stem",x="Modality", y = "Number of oviposition punctures per stem")+
+  stat_summary(fun=mean, geom="point", shape=4, size=2) +
+  stat_summary(fun=median, geom="point", shape=16, size=2) +
+  theme_classic() +
+  scale_color_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  facet_wrap(vars(parcelle))
+
+```
+
+
+## Model 
+
+```{r model, echo=FALSE, message=FALSE, warning=FALSE}
+
+data_char$bloc <- paste(data_char$parcelle, "_", data_char$plot)
+
+data_char <- subset(data_char, data_char$piqure != 19)
+
+library(glmmTMB)
+
+mymodel<- glmmTMB(piqure ~  modality +(1|parcelle/plot), data= data_char, family = nbinom2)
+
+summary(mymodel)
+
+library(DHARMa)
+
+n_sim <- 500
+
+simulationOutput <- simulateResiduals(fittedModel = mymodel, n = n_sim)
+plot(simulationOutput, asFactor = F)
+
+testDispersion(simulationOutput)
+
+testZeroInflation(simulationOutput)
+
+plot(simulationOutput, form = data_char$modality)
+
+```
+
+## Model output
+
+```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
+library(car)
+library(emmeans)
+
+Anova(mymodel, type=3)
+
+emmeans(mymodel, list(pairwise ~ modality), adjust = "tukey")
+
+```
+
+## Result figure and effect 
+
+```{r results, echo=FALSE, , message=FALSE}
+
+emm<-emmeans(mymodel, ~ modality, type = 'response')
+
+library('data.table')
+emm<- as.data.table(emm)
+
+hundred <- emm[[1,2]]
+emm$effect_percent <- (emm$response/hundred*100)-100 
+
+emm
+
+plot_bites <- ggplot(emm, aes(x=modality, y=response, fill = modality )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 2), breaks = c(0, 1, 2))
+
+plot_bites +labs(title="Number of oviposition punctures per stem", x="Modality", y = "EMMean number of oviposition punctures per stem")+
+  theme_classic()  
+
+```

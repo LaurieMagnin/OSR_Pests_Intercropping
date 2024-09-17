@@ -1,0 +1,89 @@
+---
+title: "2024.08.09_Factice_GroundCoverage"
+author: "Laurie Magnin"
+date: "2024-08-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library (broom)
+library(emmeans)
+library(ggplot2)
+library(rstatix)
+
+GroundCover_bites <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/GroundCover_bites.csv", sep=";")
+
+GroundCover_bites <- subset(GroundCover_bites, Modality != "OSR -ART ")
+head(GroundCover_bites)
+
+GroundCover_bites$Plot <- as.factor(GroundCover_bites$Plot)
+GroundCover_bites$Bloc <- as.factor(GroundCover_bites$Bloc)
+
+```
+
+## Model 
+
+```{r model, echo=FALSE, message=FALSE, warning=FALSE}
+
+model <- lm(canopycover ~Plot/Bloc + Modality , data=GroundCover_bites)
+
+model.metrics <- augment(model) 
+head(model.metrics)
+
+shapiro_test(model.metrics$.resid) 
+qqnorm(model.metrics$.resid)
+qqline(model.metrics$.resid)
+
+
+#Homogénéité des variances 
+
+model.metrics %>% levene_test(.resid ~ Modality) 
+
+# Valeurs aberrantes 
+
+model.metrics %>% filter(abs(.std.resid) > 3) %>% as.data.frame() 
+
+```
+
+## Model output
+
+```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
+
+GroundCover_bites  %>% anova_test(canopycover ~ Plot/Bloc + Modality  )
+
+pwc <- 
+  emmeans(model,pairwise~Modality )
+pwc
+
+```
+
+## Result figure and effect 
+
+```{r results, echo=FALSE, , message=FALSE}
+emm<-emmeans(model, ~ Modality, type = 'response')
+
+plot(emm, by = NULL, comparisons = FALSE, adjust = "tukey", horizontal = FALSE)
+
+library('data.table')
+
+emm<- as.data.table(emm)
+
+hundred <- emm[[1,2]]
+emm$effect_percent <- (emm$emmean/hundred*100)-100 
+
+emm
+
+plot_bites <- ggplot(emm, aes(x=Modality, y=emmean, fill = Modality )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=emmean-SE, ymax=emmean+SE), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 25), breaks = c(0, 5, 10, 15, 20, 25))
+
+plot_bites +labs(title="Ground cover at flea beetle migration", x="Modality", y = "EMMean ground coverage (%)")+
+  theme_classic() 
+
+```

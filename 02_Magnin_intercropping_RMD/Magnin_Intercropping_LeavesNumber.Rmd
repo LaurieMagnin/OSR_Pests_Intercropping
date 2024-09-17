@@ -1,0 +1,104 @@
+---
+title: "2024.08.09_Factice_LeavesNumber"
+author: "Laurie Magnin"
+date: "2024-08-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
+
+library(ggplot2)
+library(ggpubr)
+library(rstatix)
+library(dplyr)
+library(MASS)
+library(countreg)
+library(car)
+library(emmeans)
+library(glmmTMB)
+
+# Leaves number ####
+
+Notations_structures_factice <- subset(Notations_structures_factice, date.1== "2022-11-01" | date.1== "2023-09-26")
+Notations_structures_factice$nb_feuille<-as.integer(Notations_structures_factice$nb_feuille)
+Notations_structures_factice$modality<- as.factor(Notations_structures_factice$modality)
+Notations_structures_factice$plot<- as.factor(Notations_structures_factice$plot)
+Notations_structures_factice$parcelle<- as.factor(Notations_structures_factice$parcelle)
+
+Notations_structures_factice <- subset(Notations_structures_factice, nb_feuille < 12)
+
+
+```
+
+## Exploratory table
+
+
+```{r exploratory, echo=FALSE}
+
+
+```
+
+## Model 
+
+```{r model, echo=FALSE, message=FALSE}
+
+mymodel<- glmmTMB(nb_feuille ~  modality + (1|parcelle/plot) , data= Notations_structures_factice, family = "compois") 
+
+summary(mymodel)
+
+library(DHARMa)
+
+n_sim <- 500
+
+simulationOutput <- simulateResiduals(fittedModel = mymodel, n = n_sim)
+plot(simulationOutput, asFactor = F)
+
+testDispersion(simulationOutput)
+
+plot(simulationOutput, form = Notations_structures_factice$modality)
+
+```
+
+## Model output
+
+```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
+library(car)
+Anova(mymodel, type=3)
+
+library(emmeans)
+
+emmeans(mymodel, list(pairwise ~ modality), adjust = "tukey")
+
+```
+
+## Result figure and effect 
+
+```{r results, echo=FALSE, , message=FALSE}
+emm<-emmeans(mymodel, ~ modality, type = 'response')
+
+plot(emm, by = NULL, comparisons = FALSE, adjust = "tukey", horizontal = FALSE)
+
+library('data.table')
+
+emm<- as.data.table(emm)
+
+hundred <- emm[[1,2]]
+emm$effect_percent <- (emm$response/hundred*100)-100 
+
+emm
+
+plot_bites <- ggplot(emm, aes(x=modality, y=response, fill = modality )) + 
+  geom_bar(stat="identity", color="black", 
+           position=position_dodge()) +
+  scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
+  geom_errorbar(aes(ymin=response-SE, ymax=response+SE), width=.2,
+                position=position_dodge(.9)) +
+  scale_y_continuous(limits = c(0, 8), breaks = c(0, 2, 4, 6, 8))
+
+plot_bites +labs(title="Number of leaves at P. chrysocephala migration", x="Modality", y = "EMMean number of leaves")+
+  theme_classic() 
+
+```
