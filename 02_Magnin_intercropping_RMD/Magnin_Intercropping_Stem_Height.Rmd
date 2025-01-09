@@ -1,5 +1,5 @@
 ---
-title: "2024.08.09_Factice_Elongation"
+title: "2024.08.09_factice_Stem_height"
 author: "Laurie Magnin"
 date: "2024-08-09"
 output: html_document
@@ -17,22 +17,28 @@ library(car)
 library(emmeans)
 library(glmmTMB)
 
+
 Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
-data_char<-subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2024-03-01"|Notations_structures_factice$date.1 == "2023-03-01")
-head(data_char)
+
+Notations_structures_factice$Elongation<-as.numeric(Notations_structures_factice$Elongation)
+Notations_structures_factice$modality<- as.factor(Notations_structures_factice$modality)
+Notations_structures_factice$plot<- as.factor(Notations_structures_factice$plot)
+
+data_PB<-subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2024-03-26"|Notations_structures_factice$date.1 == "2023-03-21")
+head(data_PB)
+
+data_PB$h_tige <- as.numeric(data_PB$h_tige)
+
 ```
 
 ## Exploratory table
 
 ```{r exploratory, echo=FALSE}
 
-Notations_structures_factice$Elongation<-as.numeric(Notations_structures_factice$Elongation)
-Notations_structures_factice$modality<- as.factor(Notations_structures_factice$modality)
-Notations_structures_factice$plot<- as.factor(Notations_structures_factice$plot)
 
-Elongation_AV <-data_char %>%                                 # Group data
+Elongation_AV <-data_PB %>%                                 # Group data
   group_by( modality, parcelle) %>%
-  dplyr::summarize(gr_sum = mean(Elongation), sd = sd(Elongation), n = n(),
+  dplyr::summarize(gr_sum = mean(h_tige), sd = sd(h_tige), n = n(),
                    se = sd / sqrt(n)) %>% 
   as.data.frame()
 
@@ -41,8 +47,8 @@ plot1<-ggplot(Elongation_AV, aes(x=modality, y=gr_sum, fill=modality)) +
   geom_errorbar(aes(ymin=gr_sum-se, ymax=gr_sum+se), width=.2,
                 position=position_dodge(.9)) 
 
-plot1+labs(title="Average stem elongation at stem weevil migration", x="Culture type", y = "Stem elongation (cm)") + 
-  scale_y_continuous(breaks=seq(0, 20, 2))+
+plot1+labs(title="Average stem height at pollen beetle immigration", x="Culture type", y = "Stem elongation (cm)") + 
+  scale_y_continuous(breaks=seq(0, 100, 10))+
   theme_minimal() +
   scale_fill_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
   facet_wrap(vars(parcelle))
@@ -54,39 +60,38 @@ plot1+labs(title="Average stem elongation at stem weevil migration", x="Culture 
 ```{r model, echo=FALSE, message=FALSE}
 
 #Standardization of the data 
+
 standardize = function(x){ 
   z <- (x - mean(x)) / sd(x) 
   return( z) 
 } 
 
-
 Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
 Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$parcelle == "2022- P1")
-Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2023-03-01")
-Notations_structures_factice_P1 <- subset(Notations_structures_factice, Notations_structures_factice$Elongation != "14.5")
+Notations_structures_factice_P1 <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2023-03-21")
+Notations_structures_factice_P1$h_tige <- as.numeric(Notations_structures_factice_P1$h_tige)
+Notations_structures_factice_P1 <- subset(Notations_structures_factice_P1, Notations_structures_factice_P1$h_tige != 54)
+Notations_structures_factice_P1[c('h_tige')]<- apply(Notations_structures_factice_P1[c('h_tige')], 2, standardize) 
 
-Notations_structures_factice_P1[c('Elongation')]<- apply(Notations_structures_factice_P1[c('Elongation')], 2, standardize) 
 
 Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
 Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$parcelle == "2022- P2")
-Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2023-03-01")
-Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$Elongation != 12.0)
-Notations_structures_factice_P2 <- subset(Notations_structures_factice, Notations_structures_factice$Elongation != 18.0)
-
-Notations_structures_factice_P2[c('Elongation')]<- apply(Notations_structures_factice_P2[c('Elongation')], 2, standardize) 
+Notations_structures_factice_P2 <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2023-03-21")
+Notations_structures_factice_P2$h_tige <- as.numeric(Notations_structures_factice_P2$h_tige)
+Notations_structures_factice_P2[c('h_tige')]<- apply(Notations_structures_factice_P2[c('h_tige')], 2, standardize) 
 
 Notations_structures_factice <- read.csv("~/working/2023_Analyses_Plante_Factice/1_Data/Notations_structures_factice.csv", sep=";")
 Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$parcelle == "2023- P3")
-Notations_structures_factice <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2024-03-01")
-Notations_structures_factice_P3 <- subset(Notations_structures_factice, Notations_structures_factice$Elongation != 117)
+Notations_structures_factice_P3 <- subset(Notations_structures_factice, Notations_structures_factice$date.1 == "2024-03-26")
+Notations_structures_factice_P3$h_tige <- as.numeric(Notations_structures_factice_P3$h_tige)
+Notations_structures_factice_P3 <- subset(Notations_structures_factice_P3, Notations_structures_factice_P3$h_tige != 36)
+Notations_structures_factice_P3[c('h_tige')]<- apply(Notations_structures_factice_P3[c('h_tige')], 2, standardize) 
 
-Notations_structures_factice_P3[c('Elongation')]<- apply(Notations_structures_factice_P3[c('Elongation')], 2, standardize) 
+data_PB <- rbind(Notations_structures_factice_P1, Notations_structures_factice_P2, Notations_structures_factice_P3)
+data_PB$plot <- as.factor(data_PB$plot)
+data_PB$h_tige <- as.numeric (data_PB$h_tige)
 
-data_char <- rbind(Notations_structures_factice_P1, Notations_structures_factice_P2, Notations_structures_factice_P3)
-data_char$plot <- as.factor(data_char$plot)
-data_char$h_tige <- as.numeric (data_char$h_tige)
-
-model <- lm(Elongation ~ parcelle/plot + modality , data=data_char)
+model <- lm(h_tige ~ parcelle/plot + modality , data=data_PB)
 
 model.metrics <- augment(model) 
 head(model.metrics)
@@ -105,7 +110,7 @@ model.metrics %>% filter(abs(.std.resid) > 3) %>% as.data.frame() #OK
 ## Model output
 
 ```{r model output, echo=FALSE, message=FALSE, warning=FALSE}
-data_char %>% anova_test(h_tige ~ parcelle/plot + modality)
+data_PB %>% anova_test(h_tige ~ parcelle/plot + modality)
 
 library(emmeans)
 pwc <- 
@@ -138,6 +143,6 @@ plot1<-ggplot(emm, aes(x=modality, y=emmean, colour = modality )) +
   scale_colour_manual(values=c('#E69F00','#999999','#69b3a2','seagreen'))+
   scale_y_continuous(limits = c(-0.5,0.5))
 
-plot1+labs(title="Relative stem elongation at stem weevil migration", x="Modality", y = "EMMean of standardized stem elongation")+
+plot1+labs(title="Relative stem height at pollen beetle immigration", x="Modality", y = "EMMean of standardized stem height")+
   theme_classic() 
 ```
